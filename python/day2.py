@@ -19,6 +19,12 @@ def solve(input):
     print(sum(game_powers))
 
 def game_is_possible(game, configuration):
+    """
+    >>> game_is_possible([[[3, 'blue']],[[4, 'red']]], {"red": 4, "blue": 10})
+    True
+    >>> game_is_possible([[[8, 'blue']],[[4, 'red']]], {"red": 5, "blue": 7})
+    False
+    """
     for reveal in game:
         remaining = configuration.copy()
         for amt, color in reveal:
