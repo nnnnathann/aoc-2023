@@ -10,6 +10,7 @@ fi
 
 mkdir -p input
 
-for f in {1..25}; do
+for f in $(seq 1 25); do
+    echo "downloading day $f"
     curl -H "Cookie: session=$advent_session_id" https://adventofcode.com/$year/day/$f/input >input/day$f.txt
 done
