@@ -6,7 +6,7 @@ app "bin/day1"
     ]
     provides [main] to pf
 
-solution1 = \input -> sumFirstAndLastFromMap digits input
+solution1 = \input -> solveDigitPuzzle input digitsDict
 
 expect
     example1 =
@@ -18,7 +18,7 @@ expect
         """
     solution1 example1 == 142
 
-solution2 = \input -> sumFirstAndLastFromMap allDigits input
+solution2 = \input -> solveDigitPuzzle input allDigitsDict
 
 expect
     example2 =
@@ -33,23 +33,38 @@ expect
         """
     solution2 example2 == 281
 
-sumFirstAndLastFromMap = \stringDigitMap, inputStr ->
-    listDigitMap = getMapAsUtf8 stringDigitMap
-    lines inputStr 
-    |> List.map Str.toUtf8
-    |> List.map (\line -> getFirstAndLastAsNum line listDigitMap)
+solveDigitPuzzle = \inputStr, digitLookup ->
+    linesOfChars inputStr
+    |> List.map (\line -> getFirstAndLastAsNum line digitLookup)
     |> List.sum
 
-expect 
-    result = sumFirstAndLastFromMap [("1", 1), ("one", 1), ("eight", 8)] "aa12oneight\noneaaaa"
+linesOfChars = \str -> lines str |> List.map Str.toUtf8
+
+getFirstAndLastSublist = \haystack, lookup ->
+    Dict.keys lookup
+    |> (\needles ->
+        when (findFirstSublist haystack needles, findLastSublist haystack needles) is
+            (Ok first, Ok last) ->
+                when (Dict.get lookup first, Dict.get lookup last) is
+                    (Ok firstValue, Ok lastValue) -> Ok (firstValue, lastValue)
+                    _ -> Err NotFound
+
+            _ -> Err NotFound
+    )
+expect getFirstAndLastSublist [0, 1, 2, 3, 4] (Dict.fromList [([1, 2], 1), ([2, 3], 2)]) == Ok (1, 2)
+expect getFirstAndLastSublist (Str.toUtf8 "aa123aaef9one") digitsDict == Ok (1, 9)
+expect getFirstAndLastSublist (Str.toUtf8 "aa123aaefoneight") allDigitsDict == Ok (1, 8)
+
+expect
+    result = sumFirstAndLastFromMap "aa12oneight\noneaaaa" allDigitsDict
     result == 18 + 11
 
 getFirstAndLastAsNum = \chars, searchMap ->
-    when (matchFirstInMap searchMap chars, matchLastInMap searchMap chars) is
-        (Ok first, Ok last) -> 10 * first + last
+    when getFirstAndLastSublist chars searchMap is
+        Ok (first, last) -> first * 10 + last
         _ -> 0
 expect
-    result = getFirstAndLastAsNum (Str.toUtf8 "aa12two") (getMapAsUtf8 [("1", 1), ("two", 2)])
+    result = getFirstAndLastAsNum (Str.toUtf8 "aa12two") allDigitsDict
     result == 12
 
 allDigitsDict = Dict.insertAll digitsDict wordDigitsDict
@@ -88,27 +103,6 @@ main =
     two = solution2 inputFile
     Stdout.line "Part 1: \(Inspect.toStr one), Part 2: \(Inspect.toStr two)"
 
-# given a list of (List elem, value) pairs,
-# find the first pair whose (List elem) is a
-# sublist of the given input, and return the
-# value of that pair
-matchFirstInMap = \keywordMapUtf8, utf8Chars ->
-    go = \seq ->
-        if seq == [] then
-            Err NotFound
-        else
-            foundSublist = List.findFirst keywordMapUtf8 (\(keyword, _) -> List.startsWith seq keyword)
-            when foundSublist is
-                Ok (_, value) -> Ok value
-                Err _ -> go (List.dropFirst seq 1)
-    go utf8Chars
-expect matchFirstInMap (getMapAsUtf8 [("1", 2), ("2", 1)]) (Str.toUtf8 "a11abc2xy") == Ok 2
-expect matchFirstInMap (getMapAsUtf8 [("1", 1)]) (Str.toUtf8 "abc2xy") == Err NotFound
-
-matchLastInMap = \keywordMapUtf8, utf8Chars ->
-    matchFirstInMap (getReversedKeywords keywordMapUtf8) (List.reverse utf8Chars)
-expect matchLastInMap (getMapAsUtf8 [("1", 2), ("2", 1)]) (Str.toUtf8 "a11abc2xy") == Ok 1
-
 getReversedKeywords = \keywordMapUtf8 ->
     List.map keywordMapUtf8 (\kv -> mapFirst kv List.reverse)
 expect getReversedKeywords [([49, 50], 1)] == [([50, 49], 1)]
@@ -120,3 +114,26 @@ expect getMapAsUtf8 [("12", 1)] == [([49, 50], 1)]
 mapFirst = \(a, b), f ->
     (f a, b)
 expect mapFirst (1, 2) (\x -> x + 1) == (2, 2)
+
+startsWithAt = \haystack, needle, index ->
+    List.sublist haystack { start: index, len: List.len needle } == needle
+expect startsWithAt [0, 1, 2, 3, 4] [1, 2, 3] 1
+expect startsWithAt [0, 1, 2, 3, 4] [1, 3] 1 == Bool.false
+
+findLastSublist = \haystack, needles ->
+    findFirstSublist (List.reverse haystack) (List.map needles List.reverse)
+    |> Result.map List.reverse
+expect findLastSublist [0, 1, 2, 3, 4] [[1, 2], [2, 3]] == Ok [2, 3]
+
+findFirstSublist = \haystack, needles ->
+    checkIndex = \state, _, index ->
+        when findFirstStartsWithAt haystack needles index is
+            Ok needle -> Break (Ok needle)
+            Err _ -> Continue state
+    List.walkWithIndexUntil haystack (Err NotFound) checkIndex
+expect findFirstSublist [0, 1, 2, 3, 4] [[1, 2, 3], [2, 3]] == Ok [1, 2, 3]
+
+findFirstStartsWithAt = \haystack, needles, index ->
+    List.findFirst needles (\needle -> startsWithAt haystack needle index)
+expect findFirstStartsWithAt [0, 1, 2, 3, 4] [[1, 2, 3], [2, 3]] 1 == Ok [1, 2, 3]
+
