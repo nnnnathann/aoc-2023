@@ -3,8 +3,28 @@ app "bin/day1"
     imports [
         "input/day1.txt" as inputFile : Str,
         pf.Stdout,
+        pf.Task,
+        pf.Utc,
     ]
     provides [main] to pf
+
+main : Task.Task {} I32
+main =
+    runSolver inputFile
+    |> Task.mapErr (\_ -> 1)
+
+runSolver : Str -> Task.Task {} {}
+runSolver = \inputData ->
+    (one, oneMs) <- Task.await (bracketMillis (\_ -> solution1 inputData))
+    (two, twoMs) <- Task.await (bracketMillis (\_ -> solution2 inputData))
+    Stdout.line "Part 1: \(Inspect.toStr one) (\(Num.toStr oneMs)ms), Part 2: \(Inspect.toStr two) (\(Num.toStr twoMs)ms)"
+
+bracketMillis : ({} -> a) -> Task.Task (a, U128) {}
+bracketMillis = \f ->
+    start <- Task.await Utc.now
+    result = f {}
+    end <- Task.await Utc.now
+    Task.ok (result, Utc.deltaAsMillis end start)
 
 solution1 = \input -> solveDigitPuzzle input digitsDict
 
@@ -40,6 +60,10 @@ solveDigitPuzzle = \inputStr, digitLookup ->
 
 linesOfChars = \str -> lines str |> List.map Str.toUtf8
 
+# accepts a haystack, and a dict of needles to values,
+# and returns the first and last sublist of haystack that
+# matches a key of the dict, and if at least one exists,
+# returns the values of the first and last matching key
 getFirstAndLastSublist : List elem, Dict (List elem) value -> Result (value, value) [NotFound] where elem implements Hash & Eq
 getFirstAndLastSublist = \haystack, lookup ->
     Dict.keys lookup
@@ -62,7 +86,7 @@ expect
 
 getFirstAndLastAsNum = \chars, searchMap ->
     when getFirstAndLastSublist chars searchMap is
-        Ok (first, last) -> first * 10 + last
+        Ok (first, last) -> Num.toU32 (first * 10 + last)
         _ -> 0
 expect
     result = getFirstAndLastAsNum (Str.toUtf8 "aa12two") allDigitsDict
@@ -98,11 +122,6 @@ wordDigits = [
 wordDigitsDict = Dict.fromList (getMapAsUtf8 wordDigits)
 
 lines = \str -> Str.split str "\n"
-
-main =
-    one = solution1 inputFile
-    two = solution2 inputFile
-    Stdout.line "Part 1: \(Inspect.toStr one), Part 2: \(Inspect.toStr two)"
 
 getReversedKeywords = \keywordMapUtf8 ->
     List.map keywordMapUtf8 (\kv -> mapFirst kv List.reverse)
