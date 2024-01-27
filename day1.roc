@@ -40,6 +40,7 @@ solveDigitPuzzle = \inputStr, digitLookup ->
 
 linesOfChars = \str -> lines str |> List.map Str.toUtf8
 
+getFirstAndLastSublist : List elem, Dict (List elem) value -> Result (value, value) [NotFound] where elem implements Hash & Eq
 getFirstAndLastSublist = \haystack, lookup ->
     Dict.keys lookup
     |> (\needles ->
@@ -56,7 +57,7 @@ expect getFirstAndLastSublist (Str.toUtf8 "aa123aaef9one") digitsDict == Ok (1, 
 expect getFirstAndLastSublist (Str.toUtf8 "aa123aaefoneight") allDigitsDict == Ok (1, 8)
 
 expect
-    result = sumFirstAndLastFromMap "aa12oneight\noneaaaa" allDigitsDict
+    result = solveDigitPuzzle "aa12oneight\noneaaaa" allDigitsDict
     result == 18 + 11
 
 getFirstAndLastAsNum = \chars, searchMap ->
