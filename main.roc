@@ -12,23 +12,35 @@ app "aoc-2023"
     ]
     provides [main] to pf
 
+days = [
+    { num: 1, solver: day1Solver, input: day1Input },
+    { num: 2, solver: day2Solver, input: day2Input },
+]
+
 Solver : { solve1 : Str -> I32, solve2 : Str -> I32 }
 
-Day : { solver : Solver, input : Str }
+Day : { num : U8, solver : Solver, input : Str }
 
 main : Task.Task {} I32
 main =
-    day <- Task.await (runReport getDay)
+    day <- Task.await (getDay |> runReport)
     runDay day |> runReport
 
-getDay : Task.Task Day [InvalidArgument, NoArgument]
+getDayRunner : Str -> Result Day [InvalidDayNumber, DayNotFound]
+getDayRunner = \str ->
+    Str.toU8 str
+    |> Result.mapErr (\_ -> InvalidDayNumber)
+    |> Result.try (\dayNum -> days |> List.findFirst (\{ num } -> num == dayNum) |> Result.mapErr (\_ -> DayNotFound))
+
+getDay : Task.Task Day [InvalidDayNumber, DayNotFound, NoArgument, TooManyArguments]
 getDay =
-    args <- Task.await Arg.list
+    args <- Arg.list |> Task.await
     when args is
-        [_, "1"] -> Task.ok { solver: day1Solver, input: day1Input }
-        [_, "2"] -> Task.ok { solver: day2Solver, input: day2Input }
-        [] -> Task.err NoArgument
-        _ -> Task.err InvalidArgument
+        [_, num] ->
+            getDayRunner num |> Task.fromResult
+
+        [_] -> Task.err NoArgument
+        _ -> Task.err TooManyArguments
 
 runReport : Task.Task a e -> Task.Task a I32 where e implements Inspect
 runReport = \task ->
@@ -41,14 +53,13 @@ runReport = \task ->
 
 runDay : Day -> Task.Task {} {}
 runDay = \{ input, solver: { solve1, solve2 } } ->
-    (one, oneMs) <- Task.await (bracketMillis (\_ -> solve1 input))
-    (two, twoMs) <- Task.await (bracketMillis (\_ -> solve2 input))
-    Stdout.line "Part 1: \(Inspect.toStr one) (\(Num.toStr oneMs)ms), Part 2: \(Inspect.toStr two) (\(Num.toStr twoMs)ms)"
+    (one, oneMs) <- Task.await (bracketNanos (\_ -> solve1 input))
+    (two, twoMs) <- Task.await (bracketNanos (\_ -> solve2 input))
+    Stdout.line "Part 1: \(Inspect.toStr one) (\(Num.toStr oneMs)µs), Part 2: \(Inspect.toStr two) (\(Num.toStr twoMs)µs)"
 
-bracketMillis : ({} -> a) -> Task.Task (a, U128) {}
-bracketMillis = \f ->
+bracketNanos : ({} -> a) -> Task.Task (a, U128) {}
+bracketNanos = \f ->
     start <- Task.await Utc.now
     result = f {}
     end <- Task.await Utc.now
-    Task.ok (result, Utc.deltaAsMillis end start)
-
+    Task.ok (result, Num.divTrunc (Utc.deltaAsNanos end start) 1000)

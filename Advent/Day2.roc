@@ -1,6 +1,6 @@
 interface Advent.Day2
     exposes [day2Solver]
-    imports [Advent.Input]
+    imports [Advent.Input, Advent.DictExtras]
 
 day2Solver = {
     solve1: \inputStr ->
@@ -9,7 +9,13 @@ day2Solver = {
         |> List.keepIf (\game -> isPossibleWith game (Dict.fromList [("red", 12), ("green", 13), ("blue", 14)]))
         |> List.map (\game -> game.number)
         |> List.sum,
-    solve2: \_ -> 0,
+    solve2: \inputStr ->
+        Advent.Input.lines inputStr
+        |> List.keepOks (\line -> parseGame Init line)
+        |> List.map gameTotals
+        |> List.map (\totals -> Dict.toList totals |> List.map (\(_, max) -> max) |> List.product)
+        |> List.sum
+        |> Num.toI32,
 }
 
 isPossibleWith : Game, Dict Str U32 -> Bool
@@ -29,48 +35,13 @@ revealIsPossibleWith = \reveal, totals ->
         )
     |> Dict.isEmpty
 
-gameTotals : Game -> List (Dict Str U32)
 gameTotals = \game ->
     game.reveals
-    |> List.map histogram
-
-insertAllWith : Dict k v, Dict k v, (v, v -> v) -> Dict k v
-insertAllWith = \a, b, f ->
-    Dict.walk
-        a
-        b
-        (\carry, key, rightValue ->
-            Dict.update
-                carry
-                key
-                (\existing ->
-                    when existing is
-                        Missing -> Present rightValue
-                        Present leftValue -> Present (f leftValue rightValue)
-                )
-        )
-
-expect
-    a = Dict.fromList [("a", 1), ("b", 2), ("c", 1)]
-    b = Dict.fromList [("a", 3), ("c", 4)]
-    expected = Dict.fromList [("a", 2), ("b", 2), ("c", 3)]
-    result = insertAllWith a b (\left, right -> left - right)
-    expected == result
-
-histogram : List (a, U32) -> Dict a U32
-histogram = \pairs ->
-    pairs
+    |> List.map Advent.DictExtras.histogram
     |> List.walk
         (Dict.empty {})
-        (\carry, (key, value) ->
-            Dict.update
-                carry
-                key
-                (\existing ->
-                    when existing is
-                        Missing -> Present value
-                        Present n -> Present (n + value)
-                )
+        (\maxes, currHist ->
+            Advent.DictExtras.insertAllWith maxes currHist (\max, curr -> Num.max max curr)
         )
 
 example1 =
@@ -83,8 +54,8 @@ example1 =
     """
 Game : { number : I32, reveals : List (List (Str, U32)) }
 
-expect
-    day2Solver.solve1 example1 == 8
+expect day2Solver.solve1 example1 == 8
+expect day2Solver.solve2 example1 == 2286
 
 ReadMode : [
     Init,
