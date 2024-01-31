@@ -52,22 +52,28 @@ example1 =
     Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red
     Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green
     """
-Game : { number : I32, reveals : List (List (Str, U32)) }
+Game : { number : U8, reveals : List (List (Str, U32)) }
 
 expect day2Solver.solve1 example1 == 8
 expect day2Solver.solve2 example1 == 2286
 
 ReadMode : [
     Init,
-    GameNumber I32,
+    GameNumber U8,
 ]
 parseGame : ReadMode, Str -> Result Game [InvalidGameLine, NotEnoughReveals]
 parseGame = \mode, str ->
     when mode is
         Init ->
-            when Str.split str ": " is
-                [gameStr, reveals] -> parseGame (GameNumber (Advent.Input.digitsAsInt gameStr)) reveals
-                _ -> Err InvalidGameLine
+            str
+            |> Str.splitFirst ": "
+            |> Result.try
+                (\gameParts ->
+                    Str.splitFirst gameParts.before " "
+                    |> Result.try (\n -> Str.toU8 n.before)
+                    |> Result.try (\gameNum -> parseGame (GameNumber gameNum) gameParts.after)
+                )
+            |> Result.mapErr (\_ -> InvalidGameLine)
 
         GameNumber gameNumber ->
             parseReveal = \reveal ->

@@ -32,8 +32,8 @@ expect
 
 solve1 = \input ->
     input
-    |> Advent.Input.linesOfGraphemes
-    |> List.map (\line -> List.keepOks line Str.toI32)
+    |> Advent.Input.linesOfUtf8
+    |> List.map (\line -> List.keepOks line Advent.Input.utf8Digit)
     |> List.map
         (\line ->
             when (List.first line, List.last line) is
@@ -43,7 +43,7 @@ solve1 = \input ->
     |> List.sum
 
 solve2 = \input ->
-    Advent.Input.linesOfChars input
+    Advent.Input.linesOfUtf8 input
     |> List.map (\line -> (getFirstDigit line, getLastDigit line))
     |> List.map (\(first, last) -> first * 10 + last)
     |> List.sum

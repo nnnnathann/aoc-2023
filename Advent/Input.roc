@@ -1,28 +1,20 @@
 interface Advent.Input
-    exposes [lines, linesOfChars, linesOfGraphemes, readDigits, digitsAsInt, split2]
+    exposes [lines, linesOfUtf8, readDigits, digitsAsInt, split2, utf8Digit]
     imports []
 
 lines : Str -> List Str
 lines = \str -> Str.split str "\n"
 
-linesOfChars : Str -> List (List U8)
-linesOfChars = \str -> lines str |> List.map Str.toUtf8
+linesOfUtf8 : Str -> List (List U8)
+linesOfUtf8 = \str -> lines str |> List.map Str.toUtf8
 
-linesOfGraphemes : Str -> List (List Str)
-linesOfGraphemes = \str -> lines str |> List.map Str.graphemes
-
-digitsAsInt : Str -> I32
+digitsAsInt : Str -> U128
 digitsAsInt = \str ->
-    Str.graphemes str
-    |> List.keepIf
-        (\d ->
-            when d is
-                "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> Bool.true
-                _ -> Bool.false
-        )
-    |> Str.joinWith ""
-    |> Str.toI32
-    |> Result.withDefault 0
+    str
+    |> Str.walkUtf8 [] (\prev, c -> List.appendIfOk prev (utf8Digit c))
+    |> List.walk 0 (\acc, d -> acc * 10 + (Num.toU128 d))
+
+expect digitsAsInt "1a23j" == 123
 
 readDigits : Str -> List U8
 readDigits = \str ->
@@ -51,3 +43,10 @@ split2 = \str, sep ->
     when Str.split str sep is
         [a, b] -> Ok (a, b)
         _ -> Err InvalidSplit
+
+utf8Digit : U8 -> Result U8 [NotADigit]
+utf8Digit = \code ->
+    if code < 48 || code > 57 then
+        Err NotADigit
+    else
+        Ok (code - 48)

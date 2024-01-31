@@ -17,39 +17,38 @@ days = [
     { num: 2, solver: day2Solver, input: day2Input },
 ]
 
-Solver : { solve1 : Str -> I32, solve2 : Str -> I32 }
+Solver n1 n2 : { solve1 : Str -> Num n1, solve2 : Str -> Num n2 }
 
 Day : { num : U8, solver : Solver, input : Str }
 
 main : Task.Task {} I32
 main =
-    day <- Task.await (getDay |> runReport)
-    runDay day |> runReport
+    result <- Task.attempt readArgs
+    when result is
+        Ok (RunDay day) ->
+            runDay day |> Task.mapErr (\_ -> 0)
 
-getDayRunner : Str -> Result Day [InvalidDayNumber, DayNotFound]
-getDayRunner = \str ->
-    Str.toU8 str
-    |> Result.mapErr (\_ -> InvalidDayNumber)
-    |> Result.try (\dayNum -> days |> List.findFirst (\{ num } -> num == dayNum) |> Result.mapErr (\_ -> DayNotFound))
+        Err e ->
+            Stdout.line (Inspect.toStr e)
+            |> Task.mapErr (\_ -> 1)
 
-getDay : Task.Task Day [InvalidDayNumber, DayNotFound, NoArgument, TooManyArguments]
-getDay =
+Cmd : [
+    RunDay Day,
+]
+
+readArgs : Task.Task Cmd [InvalidDayNumber, DayNotFound, NoArgument, TooManyArguments]
+readArgs =
     args <- Arg.list |> Task.await
     when args is
-        [_, num] ->
-            getDayRunner num |> Task.fromResult
+        [_, numStr] ->
+            Str.toU8 numStr
+            |> Result.mapErr (\_ -> InvalidDayNumber)
+            |> Result.try (\dayNum -> days |> List.findFirst (\{ num } -> num == dayNum) |> Result.mapErr (\_ -> DayNotFound))
+            |> Task.fromResult
+            |> Task.map RunDay
 
         [_] -> Task.err NoArgument
         _ -> Task.err TooManyArguments
-
-runReport : Task.Task a e -> Task.Task a I32 where e implements Inspect
-runReport = \task ->
-    result <- Task.attempt task
-    when result is
-        Ok x -> Task.ok x
-        Err e ->
-            _ <- Task.await (Stdout.line (Inspect.toStr e))
-            Task.err 1
 
 runDay : Day -> Task.Task {} {}
 runDay = \{ input, solver: { solve1, solve2 } } ->
